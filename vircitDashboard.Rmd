@@ -1,0 +1,149 @@
+---
+title: "Virtual Citizens and the Construction of Publicness"
+resource_files:
+- tabel_output.csv
+runtime: shiny
+output:
+  flexdashboard::flex_dashboard:
+    favicon: logo-ugm.png
+    orientation: columns
+    theme: yeti
+    vertical_layout: fill
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(tidyverse)
+library(ggplot2)
+library(plotly)
+library(networkD3)
+library(shiny)
+library(textclean)
+library(scales)
+library(Rcpp)
+library(dichromat)
+library(plotly)
+```
+
+```{r global, include=FALSE, warning=FALSE, message=FALSE}
+tabelOutput <- read.csv("https://raw.githubusercontent.com/eppofahmi/vircit-dachboard/master/data/tabelOutput.csv", stringsAsFactors = FALSE, header = TRUE, sep = ",")
+
+parameter <- tabelOutput %>% 
+  select(parameter) %>%
+  count(parameter)
+```
+
+Overview
+=====================================
+
+Column
+-----------------------------------------------------------------------
+
+### Sumber Data
+
+```{r, fig.width=8, fig.height=8}
+plot1 <- ggplot(data = tabelOutput, aes(x = sumber_data, fill = factor(kasus))) + 
+  geom_bar(size = 0.2) + 
+  theme_minimal(base_size = 12) + 
+  theme(legend.position = "bottom") +
+  scale_y_log10() + 
+  geom_text(stat='count', aes(label=..count..), vjust = 0.5, 
+            position = position_dodge(0.5)) +
+  coord_polar(theta = "x", direction = 1) + 
+  ggtitle("Observations/rows of each data source and parameters") +
+  labs(x = NULL, y = NULL)
+
+plot1
+```
+
+Column
+-----------------------------------------------------------------------
+
+### Tweets Change' Distribution
+
+```{r}
+graph <- tabelOutput %>%
+  filter(kasus == "change") %>%
+  filter(sumber_data == "twitter") %>%
+  select(tanggal, parameter) %>%
+  group_by(tanggal) %>%
+  count(parameter) %>%
+  ggplot(aes(x = as.Date(tanggal), y = log(n), col = parameter,
+             text = paste0("parameter: ", parameter, "\n", 
+                           "jumlah: ", n, "\n", 
+                           "tanggal: ", tanggal),
+             group = 1)) +
+  labs(x = NULL, y = NULL) +
+  geom_point() +
+  theme_bw()
+
+plotly::ggplotly(graph, tooltip = "text")
+```
+
+### Tweets Gojek' Distribution
+
+```{r}
+graph1 <- tabelOutput %>%
+  filter(kasus == "gojek") %>%
+  filter(sumber_data == "twitter") %>%
+  select(tanggal, parameter) %>%
+  group_by(tanggal) %>%
+  count(parameter) %>%
+  ggplot(aes(x = as.Date(tanggal), y = log(n), col = parameter,
+             text = paste0("parameter: ", parameter, "\n", 
+                           "jumlah: ", n, "\n", 
+                           "tanggal: ", tanggal),
+             group = 1)) +
+  labs(x = NULL, y = NULL) +
+  geom_point() +
+  theme_bw()
+
+plotly::ggplotly(graph1, tooltip = "text")
+```
+
+
+Close Reading
+=====================================
+
+Column {.sidebar}
+-----------------------------------------------------------------------
+
+Selamat membaca
+
+```{r}
+# kasus
+selectInput("kasus", label = "Pilih kasus:",
+            choices = c("change",
+                        "gojek"),
+            selected = "gojek")
+
+# sumber data
+selectInput("sel_data", label = "Sumber data:",
+            choices = c("twitter",
+                        "web_petisi",
+                        "online_media",
+                        "playstore")) 
+
+# parameter selection
+selectInput("param", label = "Parameter pencarian", choices = parameter$parameter)
+
+# jumlah observasi
+sliderInput("numb_row", label = "Jumlah Observasi:",
+            min = 5, max = 50, value = 1, step = 5)
+
+# teks input 
+textAreaInput("deteksi", label = "Masukkan kata kunci yang ingin di cari:")
+```
+
+Column
+-----------------------------------------------------------------------
+
+```{r}
+shiny::renderTable(tabelOutput %>%
+                     filter(kasus == input$kasus) %>%
+                     filter(sumber_data == input$sel_data) %>%
+                     filter(parameter == input$param) %>%
+                     select(tanggal, teks, parameter) %>%
+                     filter(str_detect(teks, input$deteksi)) %>%
+                     head(n = as.numeric(input$numb_row)))
+```
