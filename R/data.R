@@ -66,14 +66,28 @@ class(analisis_data)
 
 write_csv(analisis_data, path = "//Volumes/mydata/rSkilss/vircit-dachboard/data/analisis_data.csv")
 
-
+# tes visualisasi ----
 analisis_data %>%
-  filter(kasus == "change") %>%                # input 1
-  filter(sumber_data == "petisi") %>%          # input 2
+  filter(kasus == "change") %>%                # input 1 - kasus
+  filter(sumber_data == "petisi") %>%          # input 2 - sumber data
   select(topic, term, beta) %>%
-  filter(topic <= 4) %>%                       # input 3
+  filter(topic == 5) %>%                       # input 3 - nomor topik
   group_by(topic) %>%
-  top_n(5) %>%                                 # input 4
+  top_n(5) %>%                                 # input 4 - jumlah term/bigram
   ggplot(aes(reorder(term, beta), beta, fill = as.factor(topic))) + 
   geom_col(show.legend = FALSE) + 
-  coord_flip() + facet_wrap(~topic, scales = "free")
+  coord_flip() + facet_wrap(~topic, scales = "free") + 
+  labs(x = NULL)
+
+
+daftarTable <- tabelOutput %>%
+  select(sumber_data, kasus) %>%
+  group_by(sumber_data, kasus) %>%
+  count(sumber_data) %>%
+  select(sumber_data, kasus)
+
+
+sumberData <- tabelOutput %>%
+  select(sumber_data, kasus) %>%
+  group_by(kasus) %>%
+  count(sumber_data)

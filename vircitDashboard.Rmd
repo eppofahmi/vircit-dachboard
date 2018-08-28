@@ -26,11 +26,37 @@ library(plotly)
 ```
 
 ```{r global, include=FALSE, warning=FALSE, message=FALSE}
+# data 1
 tabelOutput <- read.csv("https://raw.githubusercontent.com/eppofahmi/vircit-dachboard/master/data/tabelOutput.csv", stringsAsFactors = FALSE, header = TRUE, sep = ",")
+
+# cleaning
+tabelOutput$parameter <- gsub("\\bJangan kembali renggut kebebasan masyarakat jawa barat untuk memilih transportasi!\\b", "memilih transportasi",
+                              tabelOutput$parameter)
+tabelOutput$parameter <- gsub("\\bDukung keberadaan gojek di Purwokerto\\b", "Gojek di Purwokerto",
+                              tabelOutput$parameter)
+tabelOutput$parameter <- gsub("\\blayanan transportasi berbasis online\\b", "",
+                              tabelOutput$parameter)
 
 parameter <- tabelOutput %>% 
   select(parameter) %>%
-  count(parameter)
+  count(parameter) %>%
+  dplyr::select(parameter)
+
+# data 2
+analisis_data <- read.csv("https://raw.githubusercontent.com/eppofahmi/vircit-dachboard/master/data/analisis_data.csv", stringsAsFactors = FALSE, header = TRUE, sep = ",")
+
+daftar_sumber <- analisis_data %>%
+  select(sumber_data) %>%
+  count(sumber_data) %>%
+  select(sumber_data)
+
+analisis_data$sumber_data <- gsub("\\bpetisi_gojek\\b", "petisi", analisis_data$sumber_data)
+
+daftarTable <- tabelOutput %>%
+  select(sumber_data) %>%
+  group_by(sumber_data) %>%
+  count(sumber_data) %>%
+  select(sumber_data)
 ```
 
 Overview
@@ -101,6 +127,95 @@ graph1 <- tabelOutput %>%
 plotly::ggplotly(graph1, tooltip = "text")
 ```
 
+Analysis
+=====================================
+
+Column {.sidebar}
+-----------------------------------------------------------------------
+
+```{r}
+# input 1 - kasus
+selectInput("kasus", label = "Pilih kasus:",
+            choices = c("change",
+                        "gojek"),
+            selected = "gojek")
+
+# input 3 - nomor topik
+sliderInput("num_topic", label = "Topik ke-:",
+            min = 1, max = 10, value = 1, step = 1)
+
+# input 4 - jumlah term/bigram
+sliderInput("bigram", label = "Jumlah term/bigram:",
+            min = 5, max = 15, value = 5, step = 1)
+```
+
+Column
+-----------------------------------------------------------------------
+
+### Twitter
+```{r}
+shiny::renderPlot(analisis_data %>%
+                     filter(kasus == input$kasus) %>%
+                     filter(sumber_data == "twitter") %>%
+                     select(topic, term, beta) %>%
+                     filter(topic == as.numeric(input$num_topic)) %>%
+                     group_by(topic) %>%
+                     top_n(as.numeric(input$bigram)) %>%
+                    ggplot(aes(reorder(term, beta), as.double(beta), fill = topic)) +
+                    geom_col(show.legend = FALSE) + coord_flip() +
+                    labs(x = NULL, y = "beta")
+                   )
+```
+
+### Petisi
+```{r}
+shiny::renderPlot(analisis_data %>%
+                     filter(kasus == input$kasus) %>%
+                     filter(sumber_data == "petisi") %>%
+                     select(topic, term, beta) %>%
+                     filter(topic == as.numeric(input$num_topic)) %>%
+                     group_by(topic) %>%
+                     top_n(as.numeric(input$bigram)) %>%
+                    ggplot(aes(reorder(term, beta), as.double(beta), fill = topic)) +
+                    geom_col(show.legend = FALSE) + coord_flip() +
+                    labs(x = NULL, y = "beta")
+                   )
+```
+
+
+Column
+-----------------------------------------------------------------------
+
+### Playstore Customer
+```{r}
+shiny::renderPlot(analisis_data %>%
+                     filter(kasus == input$kasus) %>%
+                     filter(sumber_data == "playsotore_customer") %>%
+                     select(topic, term, beta) %>%
+                     filter(topic == as.numeric(input$num_topic)) %>%
+                     group_by(topic) %>%
+                     top_n(as.numeric(input$bigram)) %>%
+                    ggplot(aes(reorder(term, beta), as.double(beta), fill = topic)) +
+                    geom_col(show.legend = FALSE) + coord_flip() +
+                    labs(x = NULL, y = "beta")
+                   )
+```
+
+### Playstore Driver
+```{r}
+shiny::renderPlot(analisis_data %>%
+                     filter(kasus == input$kasus) %>%
+                     filter(sumber_data == "playsotore_driver") %>%
+                     select(topic, term, beta) %>%
+                     filter(topic == as.numeric(input$num_topic)) %>%
+                     group_by(topic) %>%
+                     top_n(as.numeric(input$bigram)) %>%
+                    ggplot(aes(reorder(term, beta), as.double(beta), fill = topic)) +
+                    geom_col(show.legend = FALSE) + coord_flip() +
+                    labs(x = NULL, y = "beta")
+                   )
+```
+
 
 Close Reading
 =====================================
@@ -108,42 +223,36 @@ Close Reading
 Column {.sidebar}
 -----------------------------------------------------------------------
 
-Selamat membaca
-
 ```{r}
-# kasus
-selectInput("kasus", label = "Pilih kasus:",
-            choices = c("change",
-                        "gojek"),
-            selected = "gojek")
+selectInput("case", label = "Pilih kasus:",
+            choices = c("change", "gojek"),
+            selected = "change")
+
+# Search text - ok
+textAreaInput("deteksi", label = "Masukkan kata kunci yang ingin di cari:")
 
 # sumber data
-selectInput("sel_data", label = "Sumber data:",
-            choices = c("twitter",
-                        "web_petisi",
-                        "online_media",
-                        "playstore")) 
+selectInput("sumberdata", label = "Sumber data", choices = daftarTable$sumber_data)
 
 # parameter selection
 selectInput("param", label = "Parameter pencarian", choices = parameter$parameter)
 
-# jumlah observasi
+# jumlah observasi - ok
 sliderInput("numb_row", label = "Jumlah Observasi:",
-            min = 5, max = 50, value = 1, step = 5)
-
-# teks input 
-textAreaInput("deteksi", label = "Masukkan kata kunci yang ingin di cari:")
+            min = 5, max = 100, value = 1, step = 5)
 ```
 
 Column
 -----------------------------------------------------------------------
 
 ```{r}
-shiny::renderTable(tabelOutput %>%
-                     filter(kasus == input$kasus) %>%
-                     filter(sumber_data == input$sel_data) %>%
-                     filter(parameter == input$param) %>%
-                     select(tanggal, teks, parameter) %>%
-                     filter(str_detect(teks, input$deteksi)) %>%
-                     head(n = as.numeric(input$numb_row)))
+shiny::renderTable(
+  tabelOutput %>%
+    filter(kasus == input$case) %>%
+    filter(sumber_data == input$sumberdata) %>%
+    filter(parameter == input$param) %>%
+    filter(str_detect(teks_clean, input$deteksi)) %>%
+    dplyr::select(tanggal, teks, parameter) %>%
+    head(as.numeric(input$numb_row))
+)
 ```
