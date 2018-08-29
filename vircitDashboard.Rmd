@@ -23,40 +23,105 @@ library(scales)
 library(Rcpp)
 library(dichromat)
 library(plotly)
+library(DT)
+library(dygraphs)
+library(lubridate)
+library(reshape2)
 ```
 
 ```{r global, include=FALSE, warning=FALSE, message=FALSE}
+# data ----
 # data 1
 tabelOutput <- read.csv("https://raw.githubusercontent.com/eppofahmi/vircit-dachboard/master/data/tabelOutput.csv", stringsAsFactors = FALSE, header = TRUE, sep = ",")
-
-# cleaning
-tabelOutput$parameter <- gsub("\\bJangan kembali renggut kebebasan masyarakat jawa barat untuk memilih transportasi!\\b", "memilih transportasi",
-                              tabelOutput$parameter)
-tabelOutput$parameter <- gsub("\\bDukung keberadaan gojek di Purwokerto\\b", "Gojek di Purwokerto",
-                              tabelOutput$parameter)
-tabelOutput$parameter <- gsub("\\blayanan transportasi berbasis online\\b", "",
-                              tabelOutput$parameter)
-
-parameter <- tabelOutput %>% 
-  select(parameter) %>%
-  count(parameter) %>%
-  dplyr::select(parameter)
-
 # data 2
 analisis_data <- read.csv("https://raw.githubusercontent.com/eppofahmi/vircit-dachboard/master/data/analisis_data.csv", stringsAsFactors = FALSE, header = TRUE, sep = ",")
 
+# analysis data ----
 daftar_sumber <- analisis_data %>%
   select(sumber_data) %>%
   count(sumber_data) %>%
   select(sumber_data)
-
 analisis_data$sumber_data <- gsub("\\bpetisi_gojek\\b", "petisi", analisis_data$sumber_data)
 
-daftarTable <- tabelOutput %>%
+# sumberdata -----
+daftarTable_change <- tabelOutput %>%
+  filter(kasus == "change") %>%
   select(sumber_data) %>%
   group_by(sumber_data) %>%
   count(sumber_data) %>%
   select(sumber_data)
+
+daftarTable_gojek <- tabelOutput %>%
+  filter(kasus == "gojek") %>%
+  select(sumber_data) %>%
+  group_by(sumber_data) %>%
+  count(sumber_data) %>%
+  select(sumber_data)
+
+# close reading -----
+# parameter
+parameter_change <- tabelOutput %>% 
+  filter(kasus == "change") %>%
+  select(parameter) %>%
+  count(parameter) %>%
+  dplyr::select(parameter)
+
+parameter_gojek <- tabelOutput %>% 
+  filter(kasus == "gojek") %>%
+  select(parameter) %>%
+  count(parameter) %>%
+  dplyr::select(parameter)
+
+# keterangan ----
+keterangan_change <- tabelOutput %>%
+  filter(kasus == "change") %>%
+  group_by(kasus, sumber_data) %>%
+  count(parameter) %>%
+  select(kasus, sumber_data, parameter, observasi = n)
+
+keterangan_gojek <- tabelOutput %>%
+  filter(kasus == "gojek") %>%
+  group_by(kasus, sumber_data) %>%
+  count(parameter) %>%
+  select(kasus, sumber_data, parameter, observasi = n)
+
+# timeseries data -----
+# timeseries change ----
+ts_change <- tabelOutput %>%
+  filter(kasus == "change") %>%
+  filter(sumber_data == "twitter") %>%
+  select(tanggal, kasus, parameter) %>%
+  group_by(tanggal, kasus) %>%
+  count(parameter)
+ts_change$tanggal <- as.POSIXlt.character(ts_change$tanggal)
+ts_change <- ts_change %>%
+  as.data.frame() %>%
+  select(tanggal, parameter, n)
+# create long data format from wide with n as the value
+ts_change <- dcast(ts_change, tanggal ~ parameter)
+# create timeseries data format 
+ts_change <- timeSeries::as.timeSeries(ts_change)
+
+# Timeseries gojek ----
+ts_gojek <- tabelOutput %>%
+  filter(kasus == "gojek") %>%
+  filter(sumber_data == "twitter") %>%
+  select(tanggal, kasus, parameter) %>%
+  group_by(tanggal, kasus) %>%
+  count(parameter)
+ts_gojek$tanggal <- as.POSIXlt.character(ts_gojek$tanggal)
+ts_gojek <- ts_gojek %>%
+  as.data.frame() %>%
+  select(tanggal, parameter, n)
+# create long data format from wide with n as the value
+ts_gojek <- dcast(ts_gojek, tanggal ~ parameter)
+# create timeseries data format 
+ts_gojek <- timeSeries::as.timeSeries(ts_gojek)
+# Network analysis sampel ----
+data(MisLinks) # source (src_id) + target (target_id)+ value (weigth)
+data(MisNodes) # name (nodes label) + group (modularity) + size (centrality)
+# click action 
+MyClickScript <- 'alert("You clicked " + d.name + " which is in row " + (d.index + 1) +  " of your original R data frame");'
 ```
 
 Overview
@@ -64,11 +129,10 @@ Overview
 
 Column
 -----------------------------------------------------------------------
-
-### Sumber Data
+### Data Sources
 
 ```{r, fig.width=8, fig.height=8}
-plot1 <- ggplot(data = tabelOutput, aes(x = sumber_data, fill = factor(kasus))) + 
+ggplot(data = tabelOutput, aes(x = parameter, fill = sumber_data)) + 
   geom_bar(size = 0.2) + 
   theme_minimal(base_size = 12) + 
   theme(legend.position = "bottom") +
@@ -76,59 +140,74 @@ plot1 <- ggplot(data = tabelOutput, aes(x = sumber_data, fill = factor(kasus))) 
   geom_text(stat='count', aes(label=..count..), vjust = 0.5, 
             position = position_dodge(0.5)) +
   coord_polar(theta = "x", direction = 1) + 
+  theme(axis.text.x = element_text(angle=-25)) +
   ggtitle("Observations/rows of each data source and parameters") +
   labs(x = NULL, y = NULL)
-
-plot1
 ```
 
 Column
 -----------------------------------------------------------------------
-
 ### Tweets Change' Distribution
 
 ```{r}
-graph <- tabelOutput %>%
-  filter(kasus == "change") %>%
-  filter(sumber_data == "twitter") %>%
-  select(tanggal, parameter) %>%
-  group_by(tanggal) %>%
-  count(parameter) %>%
-  ggplot(aes(x = as.Date(tanggal), y = log(n), col = parameter,
-             text = paste0("parameter: ", parameter, "\n", 
-                           "jumlah: ", n, "\n", 
-                           "tanggal: ", tanggal),
-             group = 1)) +
-  labs(x = NULL, y = NULL) +
-  geom_point() +
-  theme_bw()
+# graph1 <- tabelOutput %>%
+#   filter(kasus == "change") %>%
+#   filter(sumber_data == "twitter") %>%
+#   select(tanggal, parameter) %>%
+#   group_by(tanggal) %>%
+#   count(parameter) %>%
+#   ggplot(aes(x = as.Date(tanggal), y = log(n), col = parameter,
+#              text = paste0("parameter: ", parameter, "\n", 
+#                            "jumlah: ", n, "\n", 
+#                            "tanggal: ", tanggal),
+#              group = 1)) +
+#   labs(x = NULL, y = NULL) +
+#   geom_point() +
+#   theme_bw()
+# 
+# plotly::ggplotly(graph1, tooltip = "text")
 
-plotly::ggplotly(graph, tooltip = "text")
+# dygraph plot
+dygraph(ts_change) %>%
+  dySeries("balinotforsale", label = "#balinotforsale") %>%
+  dySeries("balitolakreklamasi", label = "#balitolakreklamasi") %>%
+  dySeries("to_@changeorg_id", label = "to_@changeorg_id") %>%
+  dyOptions(stackedGraph = TRUE) %>%
+  dyRangeSelector(height = 20)
 ```
 
 ### Tweets Gojek' Distribution
 
 ```{r}
-graph1 <- tabelOutput %>%
-  filter(kasus == "gojek") %>%
-  filter(sumber_data == "twitter") %>%
-  select(tanggal, parameter) %>%
-  group_by(tanggal) %>%
-  count(parameter) %>%
-  ggplot(aes(x = as.Date(tanggal), y = log(n), col = parameter,
-             text = paste0("parameter: ", parameter, "\n", 
-                           "jumlah: ", n, "\n", 
-                           "tanggal: ", tanggal),
-             group = 1)) +
-  labs(x = NULL, y = NULL) +
-  geom_point() +
-  theme_bw()
+# graph2 <- tabelOutput %>%
+#   filter(kasus == "gojek") %>%
+#   filter(sumber_data == "twitter") %>%
+#   select(tanggal, parameter) %>%
+#   group_by(tanggal) %>%
+#   count(parameter) %>%
+#   ggplot(aes(x = as.Date(tanggal), y = log(n), col = parameter,
+#              text = paste0("parameter: ", parameter, "\n", 
+#                            "jumlah: ", n, "\n", 
+#                            "tanggal: ", tanggal),
+#              group = 1)) +
+#   labs(x = NULL, y = NULL) +
+#   geom_point() +
+#   theme_bw()
+# 
+# plotly::ggplotly(graph2, tooltip = "text")
 
-plotly::ggplotly(graph1, tooltip = "text")
+# create plot
+dygraph(ts_gojek) %>%
+  dySeries("saveojekonline", label = "#saveojekonline") %>%
+  dySeries("savegojek", label = "#savegojek") %>%
+  dySeries("savedrivergojek", label = "#savedrivergojek") %>%
+  dySeries("to_@ceritatranspol", label = "to_@ceritatranspol") %>%
+  dyOptions(stackedGraph = TRUE) %>%
+  dyRangeSelector(height = 20)
 ```
 
-Analysis
-=====================================
+Topic Modelling {data-navmenu=Analytics}
+===========================================
 
 Column {.sidebar}
 -----------------------------------------------------------------------
@@ -146,14 +225,13 @@ sliderInput("num_topic", label = "Topik ke-:",
 
 # input 4 - jumlah term/bigram
 sliderInput("bigram", label = "Jumlah term/bigram:",
-            min = 5, max = 15, value = 5, step = 1)
+            min = 5, max = 15, value = 10, step = 1)
 ```
 
 Column
 -----------------------------------------------------------------------
-
 ### Twitter
-```{r}
+```{r tmTwitter}
 shiny::renderPlot(analisis_data %>%
                      filter(kasus == input$kasus) %>%
                      filter(sumber_data == "twitter") %>%
@@ -216,43 +294,169 @@ shiny::renderPlot(analisis_data %>%
                    )
 ```
 
-
-Close Reading
-=====================================
+Semantic Network {data-navmenu=Analytics}
+===========================================
 
 Column {.sidebar}
 -----------------------------------------------------------------------
 
 ```{r}
-selectInput("case", label = "Pilih kasus:",
-            choices = c("change", "gojek"),
-            selected = "change")
+sliderInput("opacity", "Opacity (not for Sankey)", 1, 
+                  min = 0.1,
+                  max = 1, 
+                  step = .1)
+```
 
+Column 
+-----------------------------------------------------------------------
+
+```{r}
+renderForceNetwork(
+  forceNetwork(Links = MisLinks, 
+               Nodes = MisNodes, 
+               Source = "source",
+               Target = "target", 
+               Value = "value", 
+               NodeID = "name",
+               Group = "group", 
+               opacity = input$opacity, 
+               fontSize = 15,
+               height = NULL,
+               width = NULL,
+               opacityNoHover = 0,
+               linkColour = "#666",
+               charge = -30,
+               fontFamily = "serif", linkDistance = 50,
+               radiusCalculation = JS(" Math.sqrt(d.nodesize)+6"),
+               colourScale = JS("d3.scaleOrdinal(d3.schemeCategory20);"),
+               clickAction = MyClickScript,
+               zoom = TRUE)
+)
+```
+
+
+Change {data-navmenu=Readings}
+=====================================
+
+Column {.sidebar}
+-----------------------------------------------------------------------
+
+Sumber data change
+
+```{r}
 # Search text - ok
 textAreaInput("deteksi", label = "Masukkan kata kunci yang ingin di cari:")
 
 # sumber data
-selectInput("sumberdata", label = "Sumber data", choices = daftarTable$sumber_data)
+selectInput("sumberdata", label = "Sumber data", 
+            choices = daftarTable_change$sumber_data, 
+            selected = "twitter")
 
 # parameter selection
-selectInput("param", label = "Parameter pencarian", choices = parameter$parameter)
+selectInput("param", label = "Parameter pencarian", 
+            choices = parameter_change$parameter, 
+            selected = "balinotforsale")
 
 # jumlah observasi - ok
-sliderInput("numb_row", label = "Jumlah Observasi:",
-            min = 5, max = 100, value = 1, step = 5)
+# sliderInput("numb_row", label = "Jumlah Observasi:",
+#             min = 5, max = 100, value = 10, step = 5)
 ```
 
-Column
+Column {.tabset .tabset-fade}
 -----------------------------------------------------------------------
+### Tabel
 
 ```{r}
-shiny::renderTable(
-  tabelOutput %>%
-    filter(kasus == input$case) %>%
-    filter(sumber_data == input$sumberdata) %>%
-    filter(parameter == input$param) %>%
-    filter(str_detect(teks_clean, input$deteksi)) %>%
-    dplyr::select(tanggal, teks, parameter) %>%
-    head(as.numeric(input$numb_row))
-)
+DT::renderDataTable(
+    DT::datatable(tabelOutput %>%
+      dplyr::filter(kasus == "change") %>%
+      dplyr::filter(sumber_data == input$sumberdata) %>%
+      dplyr::filter(parameter == input$param) %>%
+      filter(str_detect(teks_clean, input$deteksi)) %>%
+      dplyr::select(tanggal, teks, parameter),
+      options = list(searching = TRUE, 
+                     lengthMenu = list(c(1,3,4,5,10,-1), c("1","3","4",'5','10','All'))))
+  )
 ```
+
+### Keterangan
+
+Judul Petisi:
+
+1. petisi_change1 = "Revoke the reclamation permit of Benoa gulf, immediately!" -> segera cabut
+2. petisi_change2 = "Segera Cabut SK Reklamasi Teluk Benoa" -> revoke
+3. petisi_change3 = "Pak @Jokowi, Segera Batalkan Perpres 51 Tahun 2014" -> pak jokowi
+
+```{r}
+DT::renderDataTable(
+    DT::datatable(keterangan_change, 
+                  options = list(searching = TRUE, 
+                                 lengthMenu = list(c(5, 10, -1), c('5', '10', 'All'))))
+  )
+```
+
+
+Gojek {data-navmenu=Readings}
+=====================================
+
+Column {.sidebar}
+-----------------------------------------------------------------------
+
+Sumber data Gojek
+
+```{r}
+# Search text - ok
+textAreaInput("detek", label = "Masukkan kata kunci yang ingin di cari:")
+
+# sumber data
+selectInput("sumber", label = "Sumber data", 
+            choices = daftarTable_gojek$sumber_data, 
+            selected = "twitter")
+
+# parameter selection
+selectInput("para", label = "Parameter pencarian", 
+            choices = parameter_gojek$parameter, 
+            selected = "savegojek")
+
+# jumlah observasi - ok
+# sliderInput("numb", label = "Jumlah Observasi:",
+#             min = 5, max = 100, value = 10, step = 5)
+```
+
+Column {.tabset .tabset-fade}
+-----------------------------------------------------------------------
+### Tabel
+
+```{r}
+DT::renderDataTable(
+    DT::datatable(tabelOutput %>%
+      dplyr::filter(kasus == "gojek") %>%
+      dplyr::filter(sumber_data == input$sumber) %>%
+      dplyr::filter(parameter == input$para) %>%
+      filter(str_detect(teks_clean, input$detek)) %>%
+      dplyr::select(tanggal, teks, parameter),
+      options = list(searching = TRUE, 
+                     lengthMenu = list(c(1,3,4,5,10,-1), c("1","3","4",'5','10','All'))))
+  )
+```
+
+
+### Keterangan
+
+Judul petisi:
+
+1. petisi_gojek1 = cabut larangan pengoperasian (gojek, grabbike,dll)
+2. petisi_gojek2 = gojek di purwokerto
+3. petisi_gojek3 = hentikan permenhub 108
+4. petisi_gojek4 = kami membutuhkan gojek
+5. petisi_gojek5 = memilih transportasi
+6. petisi_gojek6 = tolak pencabutan gojek tasikmalaya!
+
+```{r}
+DT::renderDataTable(
+    DT::datatable(keterangan_gojek,
+                  options = list(searching = TRUE, 
+                                 lengthMenu = list(c(5, 10, -1), c('5', '10', 'All'))))
+  )
+```
+

@@ -5,6 +5,6 @@ account: eppofahmi
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 408875
-bundleId: 1555508
+bundleId: 1558043
 url: https://eppofahmi.shinyapps.io/vircitDashboard/
-when: 1535351692.6694
+when: 1535465686.33317
