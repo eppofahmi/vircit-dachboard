@@ -117,10 +117,14 @@ ts_gojek <- ts_gojek %>%
 ts_gojek <- dcast(ts_gojek, tanggal ~ parameter)
 # create timeseries data format 
 ts_gojek <- timeSeries::as.timeSeries(ts_gojek)
+
 # Network analysis sampel ----
-data(MisLinks) # source (src_id) + target (target_id)+ value (weigth)
-data(MisNodes) # name (nodes label) + group (modularity) + size (centrality)
+# data etwork ----
+links_1 <- read_csv("/Volumes/mydata/rSkilss/vircit-dachboard/data/links_gojek.csv")
+nodes_1 <- read_csv("/Volumes/mydata/rSkilss/vircit-dachboard/data/nodes_gojek.csv")
+
 # click action 
+# network vis ----
 MyClickScript <- 'alert("You clicked " + d.name + " which is in row " + (d.index + 1) +  " of your original R data frame");'
 ```
 
@@ -150,23 +154,6 @@ Column
 ### Tweets Change' Distribution
 
 ```{r}
-# graph1 <- tabelOutput %>%
-#   filter(kasus == "change") %>%
-#   filter(sumber_data == "twitter") %>%
-#   select(tanggal, parameter) %>%
-#   group_by(tanggal) %>%
-#   count(parameter) %>%
-#   ggplot(aes(x = as.Date(tanggal), y = log(n), col = parameter,
-#              text = paste0("parameter: ", parameter, "\n", 
-#                            "jumlah: ", n, "\n", 
-#                            "tanggal: ", tanggal),
-#              group = 1)) +
-#   labs(x = NULL, y = NULL) +
-#   geom_point() +
-#   theme_bw()
-# 
-# plotly::ggplotly(graph1, tooltip = "text")
-
 # dygraph plot
 dygraph(ts_change) %>%
   dySeries("balinotforsale", label = "#balinotforsale") %>%
@@ -179,23 +166,6 @@ dygraph(ts_change) %>%
 ### Tweets Gojek' Distribution
 
 ```{r}
-# graph2 <- tabelOutput %>%
-#   filter(kasus == "gojek") %>%
-#   filter(sumber_data == "twitter") %>%
-#   select(tanggal, parameter) %>%
-#   group_by(tanggal) %>%
-#   count(parameter) %>%
-#   ggplot(aes(x = as.Date(tanggal), y = log(n), col = parameter,
-#              text = paste0("parameter: ", parameter, "\n", 
-#                            "jumlah: ", n, "\n", 
-#                            "tanggal: ", tanggal),
-#              group = 1)) +
-#   labs(x = NULL, y = NULL) +
-#   geom_point() +
-#   theme_bw()
-# 
-# plotly::ggplotly(graph2, tooltip = "text")
-
 # create plot
 dygraph(ts_gojek) %>%
   dySeries("saveojekonline", label = "#saveojekonline") %>%
@@ -301,7 +271,14 @@ Column {.sidebar}
 -----------------------------------------------------------------------
 
 ```{r}
-sliderInput("opacity", "Opacity (not for Sankey)", 1, 
+# weight graph
+sliderInput("bobot", "Minimum weight", 1, 
+                  min = 1,
+                  max = 35, 
+                  step = 2)
+
+# opacity graph
+sliderInput("opacity", "Nodes opacity", 1, 
                   min = 0.1,
                   max = 1, 
                   step = .1)
@@ -312,17 +289,17 @@ Column
 
 ```{r}
 renderForceNetwork(
-  forceNetwork(Links = MisLinks, 
-               Nodes = MisNodes, 
-               Source = "source",
-               Target = "target", 
-               Value = "value", 
-               NodeID = "name",
-               Group = "group", 
+  forceNetwork(Links = links_1 %>% filter(Weight >= input$bobot), 
+               Nodes = nodes_1, 
+               Source = "Source",
+               Target = "Target", 
+               Value = "Weight",
+               NodeID = "Label",
+               Nodesize = "eigencentrality", 
+               Group = "modularity_class",
                opacity = input$opacity, 
                fontSize = 15,
-               height = NULL,
-               width = NULL,
+               height = 700, width = 500,
                opacityNoHover = 0,
                linkColour = "#666",
                charge = -30,
@@ -340,7 +317,6 @@ Change {data-navmenu=Readings}
 
 Column {.sidebar}
 -----------------------------------------------------------------------
-
 Sumber data change
 
 ```{r}
@@ -350,12 +326,12 @@ textAreaInput("deteksi", label = "Masukkan kata kunci yang ingin di cari:")
 # sumber data
 selectInput("sumberdata", label = "Sumber data", 
             choices = daftarTable_change$sumber_data, 
-            selected = "twitter")
+            selected = "online_media")
 
 # parameter selection
 selectInput("param", label = "Parameter pencarian", 
             choices = parameter_change$parameter, 
-            selected = "balinotforsale")
+            selected = "tempo")
 
 # jumlah observasi - ok
 # sliderInput("numb_row", label = "Jumlah Observasi:",
@@ -380,12 +356,11 @@ DT::renderDataTable(
 ```
 
 ### Keterangan
+Parameter = Judul Petisi:
 
-Judul Petisi:
-
-1. petisi_change1 = "Revoke the reclamation permit of Benoa gulf, immediately!" -> segera cabut
-2. petisi_change2 = "Segera Cabut SK Reklamasi Teluk Benoa" -> revoke
-3. petisi_change3 = "Pak @Jokowi, Segera Batalkan Perpres 51 Tahun 2014" -> pak jokowi
+1. petisi_change1 = Revoke the reclamation permit of Benoa gulf, immediately!
+2. petisi_change2 = Segera Cabut SK Reklamasi Teluk Benoa
+3. petisi_change3 = Pak @Jokowi, Segera Batalkan Perpres 51 Tahun 2014
 
 ```{r}
 DT::renderDataTable(
@@ -401,7 +376,6 @@ Gojek {data-navmenu=Readings}
 
 Column {.sidebar}
 -----------------------------------------------------------------------
-
 Sumber data Gojek
 
 ```{r}
@@ -411,12 +385,12 @@ textAreaInput("detek", label = "Masukkan kata kunci yang ingin di cari:")
 # sumber data
 selectInput("sumber", label = "Sumber data", 
             choices = daftarTable_gojek$sumber_data, 
-            selected = "twitter")
+            selected = "online_media")
 
 # parameter selection
 selectInput("para", label = "Parameter pencarian", 
             choices = parameter_gojek$parameter, 
-            selected = "savegojek")
+            selected = "tempo")
 
 # jumlah observasi - ok
 # sliderInput("numb", label = "Jumlah Observasi:",
@@ -442,15 +416,14 @@ DT::renderDataTable(
 
 
 ### Keterangan
+Parameter = Judul Petisi:
 
-Judul petisi:
-
-1. petisi_gojek1 = cabut larangan pengoperasian (gojek, grabbike,dll)
-2. petisi_gojek2 = gojek di purwokerto
-3. petisi_gojek3 = hentikan permenhub 108
-4. petisi_gojek4 = kami membutuhkan gojek
-5. petisi_gojek5 = memilih transportasi
-6. petisi_gojek6 = tolak pencabutan gojek tasikmalaya!
+1. petisi_gojek1 = Cabut larangan pengoperasian layanan transportasi berbasis online (Gojek, GrabBike,dll)
+2. petisi_gojek2 = Dukung Keberadaan Go-Jek di Purwokerto
+3. petisi_gojek3 = Hentikan Permenhub 108
+4. petisi_gojek4 = Kami Membutuhkan Gojek
+5. petisi_gojek5 = Jangan Kembali Renggut Kebebasan Masyarakat Jawa Barat Untuk Memilih Transportasi!
+6. petisi_gojek6 = Tolak Pencabutan GoJek Tasikmalaya!
 
 ```{r}
 DT::renderDataTable(
