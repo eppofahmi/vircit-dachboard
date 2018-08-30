@@ -27,12 +27,14 @@ library(DT)
 library(dygraphs)
 library(lubridate)
 library(reshape2)
+library(repmis) # downloading Rdata from github
 ```
 
 ```{r global, include=FALSE, warning=FALSE, message=FALSE}
 # data ----
 # data 1
 tabelOutput <- read.csv("https://raw.githubusercontent.com/eppofahmi/vircit-dachboard/master/data/tabelOutput.csv", stringsAsFactors = FALSE, header = TRUE, sep = ",")
+
 # data 2
 analisis_data <- read.csv("https://raw.githubusercontent.com/eppofahmi/vircit-dachboard/master/data/analisis_data.csv", stringsAsFactors = FALSE, header = TRUE, sep = ",")
 
@@ -120,8 +122,8 @@ ts_gojek <- timeSeries::as.timeSeries(ts_gojek)
 
 # Network analysis sampel ----
 # data etwork ----
-links_1 <- read_csv("/Volumes/mydata/rSkilss/vircit-dachboard/data/links_gojek.csv")
-nodes_1 <- read_csv("/Volumes/mydata/rSkilss/vircit-dachboard/data/nodes_gojek.csv")
+links_1 <- read.csv("https://raw.githubusercontent.com/eppofahmi/vircit-dashboard/master/data/links_gojek.csv", stringsAsFactors = FALSE, header = TRUE, sep = ",")
+nodes_1 <- read.csv("https://raw.githubusercontent.com/eppofahmi/vircit-dashboard/master/data/nodes_gojek.csv", stringsAsFactors = FALSE, header = TRUE, sep = ",")
 
 # click action 
 # network vis ----
@@ -300,7 +302,7 @@ renderForceNetwork(
                opacity = input$opacity, 
                fontSize = 15,
                height = 700, width = 500,
-               opacityNoHover = 0,
+               opacityNoHover = TRUE,
                linkColour = "#666",
                charge = -30,
                fontFamily = "serif", linkDistance = 50,
