@@ -27,23 +27,14 @@ library(DT)
 library(dygraphs)
 library(lubridate)
 library(reshape2)
-library(repmis) # downloading Rdata from github
+library(repmis)
+library(readr)
 ```
 
 ```{r global, include=FALSE, warning=FALSE, message=FALSE}
 # data ----
-# data 1
-tabelOutput <- read.csv("https://raw.githubusercontent.com/eppofahmi/vircit-dachboard/master/data/tabelOutput.csv", stringsAsFactors = FALSE, header = TRUE, sep = ",")
-
-# data 2
-analisis_data <- read.csv("https://raw.githubusercontent.com/eppofahmi/vircit-dachboard/master/data/analisis_data.csv", stringsAsFactors = FALSE, header = TRUE, sep = ",")
-
-# analysis data ----
-daftar_sumber <- analisis_data %>%
-  select(sumber_data) %>%
-  count(sumber_data) %>%
-  select(sumber_data)
-analisis_data$sumber_data <- gsub("\\bpetisi_gojek\\b", "petisi", analisis_data$sumber_data)
+tabelOutput <- read_csv("https://raw.githubusercontent.com/eppofahmi/vircit-dashboard/master/data-dashboard/tabelOutput.csv")
+eksplorasi_all <- read_csv("https://raw.githubusercontent.com/eppofahmi/vircit-dashboard/master/data-dashboard/eksplorasi_all.csv")
 
 # sumberdata -----
 daftarTable_change <- tabelOutput %>%
@@ -52,7 +43,6 @@ daftarTable_change <- tabelOutput %>%
   group_by(sumber_data) %>%
   count(sumber_data) %>%
   select(sumber_data)
-
 daftarTable_gojek <- tabelOutput %>%
   filter(kasus == "gojek") %>%
   select(sumber_data) %>%
@@ -67,7 +57,6 @@ parameter_change <- tabelOutput %>%
   select(parameter) %>%
   count(parameter) %>%
   dplyr::select(parameter)
-
 parameter_gojek <- tabelOutput %>% 
   filter(kasus == "gojek") %>%
   select(parameter) %>%
@@ -80,14 +69,13 @@ keterangan_change <- tabelOutput %>%
   group_by(kasus, sumber_data) %>%
   count(parameter) %>%
   select(kasus, sumber_data, parameter, observasi = n)
-
 keterangan_gojek <- tabelOutput %>%
   filter(kasus == "gojek") %>%
   group_by(kasus, sumber_data) %>%
   count(parameter) %>%
   select(kasus, sumber_data, parameter, observasi = n)
 
-# timeseries data -----
+# timeseries data =================================================
 # timeseries change ----
 ts_change <- tabelOutput %>%
   filter(kasus == "change") %>%
@@ -95,10 +83,14 @@ ts_change <- tabelOutput %>%
   select(tanggal, kasus, parameter) %>%
   group_by(tanggal, kasus) %>%
   count(parameter)
+
+ts_change$tanggal <- as.character(ts_change$tanggal)
 ts_change$tanggal <- as.POSIXlt.character(ts_change$tanggal)
+
 ts_change <- ts_change %>%
   as.data.frame() %>%
   select(tanggal, parameter, n)
+
 # create long data format from wide with n as the value
 ts_change <- dcast(ts_change, tanggal ~ parameter)
 # create timeseries data format 
@@ -111,6 +103,8 @@ ts_gojek <- tabelOutput %>%
   select(tanggal, kasus, parameter) %>%
   group_by(tanggal, kasus) %>%
   count(parameter)
+ts_gojek$tanggal <- as.character(ts_gojek$tanggal)
+
 ts_gojek$tanggal <- as.POSIXlt.character(ts_gojek$tanggal)
 ts_gojek <- ts_gojek %>%
   as.data.frame() %>%
@@ -120,23 +114,104 @@ ts_gojek <- dcast(ts_gojek, tanggal ~ parameter)
 # create timeseries data format 
 ts_gojek <- timeSeries::as.timeSeries(ts_gojek)
 
-# Network analysis sampel ----
-# data etwork ----
-links_1 <- read.csv("https://raw.githubusercontent.com/eppofahmi/vircit-dashboard/master/data/links_gojek.csv", stringsAsFactors = FALSE, header = TRUE, sep = ",")
-nodes_1 <- read.csv("https://raw.githubusercontent.com/eppofahmi/vircit-dashboard/master/data/nodes_gojek.csv", stringsAsFactors = FALSE, header = TRUE, sep = ",")
+# ========================================================================= 
+# Network analysis ----
+# data semantic network
+edges_all <- read_csv("https://raw.githubusercontent.com/eppofahmi/vircit-dashboard/master/data-dashboard/edges_all.csv")
+nodes_all <- read_csv("https://raw.githubusercontent.com/eppofahmi/vircit-dashboard/master/data-dashboard/nodes_all.csv")
 
-# click action 
-# network vis ----
-MyClickScript <- 'alert("You clicked " + d.name + " which is in row " + (d.index + 1) +  " of your original R data frame");'
+# 1. change -----
+# 1a. Twitter
+edgesTwit_chang <- edges_all %>%
+  filter(kasus == "change", sumber_data == "twitter")
+nodesTwit_chang <- nodes_all %>%
+  filter(kasus == "change", sumber_data == "twitter")
+
+twitter <- list(edges = edgesTwit_chang, nodes = nodesTwit_chang)
+rm(nodesTwit_chang, edgesTwit_chang)
+
+# 1b. Petisi
+edgesPetisi_change <- edges_all %>%
+  filter(kasus == "change", sumber_data == "web_petisi")
+nodesPetisi_change <- nodes_all %>%
+  filter(kasus == "change", sumber_data == "web_petisi")
+
+web_petisi <- list(edges = edgesPetisi_change, nodes = nodesPetisi_change)
+rm(edgesPetisi_change, nodesPetisi_change)
+
+# 1c. menggabungkan list
+change <- list(twitter = twitter, web_petisi = web_petisi)
+rm(twitter, web_petisi)
+
+# 2. gojek -----
+# 2a. twitter
+edgesTwit_gojek <- edges_all %>%
+  filter(kasus == "gojek", sumber_data == "twitter")
+nodesTwit_gojek <- nodes_all %>%
+  filter(kasus == "gojek", sumber_data == "twitter")
+twitter <- list(edges = edgesTwit_gojek, nodes = nodesTwit_gojek)
+rm(edgesTwit_gojek, nodesTwit_gojek)
+
+# 2b. petisi
+edgesPetisi_gojek <- edges_all %>%
+  filter(kasus == "gojek", sumber_data == "web_petisi")
+nodesPetisi_gojek <- nodes_all %>%
+  filter(kasus == "gojek", sumber_data == "web_petisi")
+
+web_petisi <- list(edges = edgesPetisi_gojek, nodes = nodesPetisi_gojek)
+rm(edgesPetisi_gojek, nodesPetisi_gojek)
+
+# 2c. playstore
+edgesPlaystore_gojek <- edges_all %>%
+  filter(kasus == "gojek", sumber_data == "playstore")
+nodesPlaystore_gojek <- nodes_all %>%
+  filter(kasus == "gojek", sumber_data == "playstore")
+
+playstore <- list(edges = edgesPlaystore_gojek, nodes = nodesPlaystore_gojek)
+rm(edgesPlaystore_gojek, nodesPlaystore_gojek)
+
+gojek <- list(twitter = twitter, web_petisi = web_petisi, playstore = playstore)
+rm(web_petisi, playstore, twitter)
+
+# 3. data for network
+data_net <- list(change = change, gojek = gojek)
+rm(change, gojek)
+
+# ==========================================================
+# NETWORK USER ---- 
+edgesUser_bnfs <- read_csv("https://raw.githubusercontent.com/eppofahmi/vircit-dashboard/master/data-dashboard/edgesUser_bnfs.csv")
+nodesUser_bnfs <- read_csv("https://raw.githubusercontent.com/eppofahmi/vircit-dashboard/master/data-dashboard/nodesUser_bnfs.csv")
+
+balinotforsale <- list(edges = edgesUser_bnfs, nodes = nodesUser_bnfs)
+rm(edgesUser_bnfs, nodesUser_bnfs)
+
+edgesUser_btr <- read_csv("https://raw.githubusercontent.com/eppofahmi/vircit-dashboard/master/data-dashboard/edgesUser_btr.csv")
+nodesUser_btr <- read_csv("https://raw.githubusercontent.com/eppofahmi/vircit-dashboard/master/data-dashboard/nodesUser_btr.csv")
+edgesUser_btr$value <- log10(edgesUser_btr$value)
+balitolakreklamasi <- list(edges = edgesUser_btr, nodes = nodesUser_btr)
+rm(edgesUser_btr, nodesUser_btr)
+
+edgesUser_gojek <- read_csv("https://raw.githubusercontent.com/eppofahmi/vircit-dashboard/master/data-dashboard/edgesUser_gojek.csv")
+nodesUser_gojek <- read_csv("https://raw.githubusercontent.com/eppofahmi/vircit-dashboard/master/data-dashboard/nodesUser_gojek.csv")
+savegojek <- list(edges = edgesUser_gojek, nodes = nodesUser_gojek)
+rm(edgesUser_gojek, nodesUser_gojek)
+
+change <- list(balinotforsale = balinotforsale, balitolakreklamasi = balitolakreklamasi)
+rm(balitolakreklamasi, balinotforsale)
+
+gojek <- list(savegojek = savegojek)
+rm(savegojek)
+
+net_user <- list(change = change, gojek = gojek)
+rm(gojek, change)
 ```
 
 Overview
-=====================================
+=======================================================================
 
 Column
 -----------------------------------------------------------------------
 ### Data Sources
-
 ```{r, fig.width=8, fig.height=8}
 ggplot(data = tabelOutput, aes(x = parameter, fill = sumber_data)) + 
   geom_bar(size = 0.2) + 
@@ -153,8 +228,8 @@ ggplot(data = tabelOutput, aes(x = parameter, fill = sumber_data)) +
 
 Column
 -----------------------------------------------------------------------
-### Tweets Change' Distribution
 
+### Tweets Change' Distribution
 ```{r}
 # dygraph plot
 dygraph(ts_change) %>%
@@ -166,7 +241,6 @@ dygraph(ts_change) %>%
 ```
 
 ### Tweets Gojek' Distribution
-
 ```{r}
 # create plot
 dygraph(ts_gojek) %>%
@@ -178,24 +252,27 @@ dygraph(ts_gojek) %>%
   dyRangeSelector(height = 20)
 ```
 
-Topic Modelling {data-navmenu=Analytics}
-===========================================
+Exploration {data-navmenu=Analytics}
+=======================================================================
 
 Column {.sidebar}
 -----------------------------------------------------------------------
-
 ```{r}
 # input 1 - kasus
 selectInput("kasus", label = "Pilih kasus:",
             choices = c("change",
                         "gojek"),
             selected = "gojek")
-
-# input 3 - nomor topik
-sliderInput("num_topic", label = "Topik ke-:",
+# input 2 - eksplorasi
+selectInput("eksp", label = "Metode eksplorasi:",
+            choices = c("frekuensi",
+                        "tf_idf",
+                        "topicmodelling"),
+            selected = "topicmodelling")
+# input 3 - urutan topik
+sliderInput("num_topic", label = "Topik ke..(untuk topic modelling):",
             min = 1, max = 10, value = 1, step = 1)
-
-# input 4 - jumlah term/bigram
+# input 3 - jumlah term/bigram
 sliderInput("bigram", label = "Jumlah term/bigram:",
             min = 5, max = 15, value = 10, step = 1)
 ```
@@ -203,119 +280,194 @@ sliderInput("bigram", label = "Jumlah term/bigram:",
 Column
 -----------------------------------------------------------------------
 ### Twitter
-```{r tmTwitter}
-shiny::renderPlot(analisis_data %>%
-                     filter(kasus == input$kasus) %>%
-                     filter(sumber_data == "twitter") %>%
-                     select(topic, term, beta) %>%
-                     filter(topic == as.numeric(input$num_topic)) %>%
-                     group_by(topic) %>%
-                     top_n(as.numeric(input$bigram)) %>%
-                    ggplot(aes(reorder(term, beta), as.double(beta), fill = topic)) +
+```{r p1}
+shiny::renderPlot(eksplorasi_all %>%
+                    filter(kasus == input$kasus) %>%
+                    filter(sumber_data == "twitter") %>%
+                    filter(eksplorasi == input$eksp) %>%
+                    filter(topic == as.numeric(input$num_topic)) %>%
+                    select(topic, term, value) %>%
+                    top_n(as.numeric(input$bigram)) %>%
+                    ggplot(aes(reorder(term, value), as.double(value), fill = topic)) +
                     geom_col(show.legend = FALSE) + coord_flip() +
-                    labs(x = NULL, y = "beta")
+                    labs(x = NULL, y = "jumlah/tf-idf/beta")
                    )
 ```
 
 ### Petisi
 ```{r}
-shiny::renderPlot(analisis_data %>%
-                     filter(kasus == input$kasus) %>%
-                     filter(sumber_data == "petisi") %>%
-                     select(topic, term, beta) %>%
-                     filter(topic == as.numeric(input$num_topic)) %>%
-                     group_by(topic) %>%
-                     top_n(as.numeric(input$bigram)) %>%
-                    ggplot(aes(reorder(term, beta), as.double(beta), fill = topic)) +
+shiny::renderPlot(eksplorasi_all %>%
+                    filter(kasus == input$kasus) %>%
+                    filter(sumber_data == "web_petisi") %>%
+                    filter(eksplorasi == input$eksp) %>%
+                    filter(topic == as.numeric(input$num_topic)) %>%
+                    select(topic, term, value) %>%
+                    top_n(as.numeric(input$bigram)) %>%
+                    ggplot(aes(reorder(term, value), as.double(value), fill = topic)) +
                     geom_col(show.legend = FALSE) + coord_flip() +
-                    labs(x = NULL, y = "beta")
+                    labs(x = NULL, y = "jumlah/tf-idf/beta")
                    )
 ```
-
 
 Column
 -----------------------------------------------------------------------
 
-### Playstore Customer
+### Playstore/Playstore Customer
 ```{r}
-shiny::renderPlot(analisis_data %>%
-                     filter(kasus == input$kasus) %>%
-                     filter(sumber_data == "playsotore_customer") %>%
-                     select(topic, term, beta) %>%
-                     filter(topic == as.numeric(input$num_topic)) %>%
-                     group_by(topic) %>%
-                     top_n(as.numeric(input$bigram)) %>%
-                    ggplot(aes(reorder(term, beta), as.double(beta), fill = topic)) +
+shiny::renderPlot(eksplorasi_all %>%
+                    filter(kasus == input$kasus) %>%
+                    filter(sumber_data == "playstore") %>%
+                    filter(eksplorasi == input$eksp) %>%
+                    filter(topic == as.numeric(input$num_topic)) %>%
+                    select(topic, term, value) %>%
+                    top_n(as.numeric(input$bigram)) %>%
+                    ggplot(aes(reorder(term, value), as.double(value), fill = topic)) +
                     geom_col(show.legend = FALSE) + coord_flip() +
-                    labs(x = NULL, y = "beta")
+                    labs(x = NULL, y = "jumlah/tf-idf/beta")
                    )
 ```
 
 ### Playstore Driver
 ```{r}
-shiny::renderPlot(analisis_data %>%
-                     filter(kasus == input$kasus) %>%
-                     filter(sumber_data == "playsotore_driver") %>%
-                     select(topic, term, beta) %>%
-                     filter(topic == as.numeric(input$num_topic)) %>%
-                     group_by(topic) %>%
-                     top_n(as.numeric(input$bigram)) %>%
-                    ggplot(aes(reorder(term, beta), as.double(beta), fill = topic)) +
+shiny::renderPlot(eksplorasi_all %>%
+                    filter(kasus == input$kasus) %>%
+                    filter(sumber_data == "playsotore_driver") %>%
+                    filter(eksplorasi == input$eksp) %>%
+                    filter(topic == as.numeric(input$num_topic)) %>%
+                    select(topic, term, value) %>%
+                    top_n(as.numeric(input$bigram)) %>%
+                    ggplot(aes(reorder(term, value), as.double(value), fill = topic)) +
                     geom_col(show.legend = FALSE) + coord_flip() +
-                    labs(x = NULL, y = "beta")
+                    labs(x = NULL, y = "jumlah/tf-idf/beta")
                    )
 ```
 
+
 Semantic Network {data-navmenu=Analytics}
-===========================================
+=======================================================================
 
 Column {.sidebar}
 -----------------------------------------------------------------------
 
-```{r}
-# weight graph
-sliderInput("bobot", "Minimum weight", 1, 
-                  min = 1,
-                  max = 35, 
-                  step = 2)
-
-# opacity graph
-sliderInput("opacity", "Nodes opacity", 1, 
+```{r inputNetwork}
+# input 1 - kasus - ok
+selectInput("kasus212", "Pilih kasus...", 
+            choices = c("change", "gojek"), 
+            selected = "change")
+# input 2 - sumber data
+selectInput("sumber212", "Pilih sumber data...",
+            choices = c("twitter", "web_petisi", "playstore"),
+            selected = "twitter")
+# input 3 - arrow - ok
+selectInput("arah212", "Directed/Undirected", 
+            choices = c("True"= "TRUE", "False"= "FALSE"), 
+            selected = "True")
+# input 4 - opacity - ok
+sliderInput("opacity212", "Nodes opacity", 1, 
                   min = 0.1,
-                  max = 1, 
+                  max = 1,  
                   step = .1)
 ```
 
 Column 
 -----------------------------------------------------------------------
 
-```{r}
+SEMANTIC NETWORK ANALYSIS
+
+```{r semnet}
+# Render netwrok for UI
 renderForceNetwork(
-  forceNetwork(Links = links_1 %>% filter(Weight >= input$bobot), 
-               Nodes = nodes_1, 
-               Source = "Source",
-               Target = "Target", 
-               Value = "Weight",
+  forceNetwork(Links = data_net[[c(input$kasus212, input$sumber212, "edges")]], 
+               Nodes = data_net[[c(input$kasus212, input$sumber212, "nodes")]], 
+               Source = "source",Target = "target", 
+               Value = "value",
                NodeID = "Label",
-               Nodesize = "eigencentrality", 
-               Group = "modularity_class",
-               opacity = input$opacity, 
-               fontSize = 15,
-               height = 700, width = 500,
-               opacityNoHover = TRUE,
-               linkColour = "#666",
+               Nodesize = "eigencentrality",
+               Group = "modularity_class", 
+               arrows = as.logical(input$arah212), 
                charge = -30,
-               fontFamily = "serif", linkDistance = 50,
-               radiusCalculation = JS(" Math.sqrt(d.nodesize)+6"),
-               colourScale = JS("d3.scaleOrdinal(d3.schemeCategory20);"),
-               clickAction = MyClickScript,
+               opacity = input$opacity212,
+               linkColour = "#666",
+               colourScale = JS("d3.scaleOrdinal(d3.schemeCategory10);"),
+               linkDistance = 150,
+               opacityNoHover = TRUE,
+               fontSize = 14, 
+               zoom = TRUE)
+)
+```
+
+SNA {data-navmenu=Analytics}
+=======================================================================
+
+Column {.sidebar}
+-----------------------------------------------------------------------
+
+```{r inputSNA}
+# input 1 - kasus
+selectInput("kasus1", "Pilih kasus...", 
+            choices = c("Change" ="change", "Gojek" = "gojek"), 
+            selected = "Change")
+# input 2 - sumber data/tagar
+selectInput("sumbertagar", "Pilih sumber data...",
+            choices = c("balinotforsale", 
+                        "balitolakreklamasi", "gojek" = "savegojek"),
+            selected = "balinotforsale")
+# input 3 - nodes size
+selectInput("theSize", "Nodes sizes based on...",
+            choices = c("modularity" = "modularity_class",
+                        "eccentricity" = "Eccentricity",
+                        "closness" = "closnesscentrality",
+                        "betweeness" = "betweenesscentrality",
+                        "eigencentrality" = "eigencentrality"),
+            selected = "eigencentrality")
+# input 4 - nodes group
+selectInput("theGroup", "Nodes group based on...",
+            choices = c("modularity" = "modularity_class",
+                        "eccentricity" = "Eccentricity",
+                        "closness" = "closnesscentrality",
+                        "betweeness" = "betweenesscentrality",
+                        "eigencentrality" = "eigencentrality"),
+            selected = "modularity")
+# input 5 - arrow - ok
+selectInput("arah008", "Directed/Undirected", 
+            choices = c("True" = "TRUE", "False" = "FALSE"), 
+            selected = "True")
+# input 6 - opacity
+sliderInput("opacity1", "Nodes opacity", 1, 
+                  min = 0.1,
+                  max = 1,  
+                  step = .1)
+```
+
+Column 
+-----------------------------------------------------------------------
+
+SOCIAL NETWORK ANALYSIS
+
+```{r sna}
+renderForceNetwork(
+  forceNetwork(Links = net_user[[c(input$kasus1, input$sumbertagar, "edges")]], 
+               Nodes = net_user[[c(input$kasus1, input$sumbertagar, "nodes")]], 
+               Source = "source",
+               Target = "target", 
+               Value = "value",
+               NodeID = "Label",
+               Nodesize = input$theSize,
+               Group = input$theGroup, 
+               arrows = as.logical(input$arah008),
+               opacity = input$opacity1, 
+               linkColour = "#666",
+               colourScale = JS("d3.scaleOrdinal(d3.schemeCategory10);"),
+               linkDistance = 150,
+               opacityNoHover = TRUE,
+               fontSize = 14, 
                zoom = TRUE)
 )
 ```
 
 
 Change {data-navmenu=Readings}
-=====================================
+=======================================================================
 
 Column {.sidebar}
 -----------------------------------------------------------------------
@@ -324,20 +476,14 @@ Sumber data change
 ```{r}
 # Search text - ok
 textAreaInput("deteksi", label = "Masukkan kata kunci yang ingin di cari:")
-
 # sumber data
 selectInput("sumberdata", label = "Sumber data", 
             choices = daftarTable_change$sumber_data, 
             selected = "online_media")
-
 # parameter selection
 selectInput("param", label = "Parameter pencarian", 
             choices = parameter_change$parameter, 
             selected = "tempo")
-
-# jumlah observasi - ok
-# sliderInput("numb_row", label = "Jumlah Observasi:",
-#             min = 5, max = 100, value = 10, step = 5)
 ```
 
 Column {.tabset .tabset-fade}
@@ -372,31 +518,24 @@ DT::renderDataTable(
   )
 ```
 
-
 Gojek {data-navmenu=Readings}
-=====================================
+=======================================================================
 
 Column {.sidebar}
 -----------------------------------------------------------------------
 Sumber data Gojek
 
 ```{r}
-# Search text - ok
+# Search text
 textAreaInput("detek", label = "Masukkan kata kunci yang ingin di cari:")
-
 # sumber data
-selectInput("sumber", label = "Sumber data", 
+selectInput("sumber1gojek", label = "Sumber data", 
             choices = daftarTable_gojek$sumber_data, 
             selected = "online_media")
-
 # parameter selection
 selectInput("para", label = "Parameter pencarian", 
             choices = parameter_gojek$parameter, 
             selected = "tempo")
-
-# jumlah observasi - ok
-# sliderInput("numb", label = "Jumlah Observasi:",
-#             min = 5, max = 100, value = 10, step = 5)
 ```
 
 Column {.tabset .tabset-fade}
@@ -404,10 +543,11 @@ Column {.tabset .tabset-fade}
 ### Tabel
 
 ```{r}
+# render readings gojek
 DT::renderDataTable(
     DT::datatable(tabelOutput %>%
       dplyr::filter(kasus == "gojek") %>%
-      dplyr::filter(sumber_data == input$sumber) %>%
+      dplyr::filter(sumber_data == input$sumber1gojek) %>%
       dplyr::filter(parameter == input$para) %>%
       filter(str_detect(teks_clean, input$detek)) %>%
       dplyr::select(tanggal, teks, parameter),
@@ -415,7 +555,6 @@ DT::renderDataTable(
                      lengthMenu = list(c(1,3,4,5,10,-1), c("1","3","4",'5','10','All'))))
   )
 ```
-
 
 ### Keterangan
 Parameter = Judul Petisi:
@@ -428,6 +567,7 @@ Parameter = Judul Petisi:
 6. petisi_gojek6 = Tolak Pencabutan GoJek Tasikmalaya!
 
 ```{r}
+# tab keterangan gojek
 DT::renderDataTable(
     DT::datatable(keterangan_gojek,
                   options = list(searching = TRUE, 
